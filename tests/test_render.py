@@ -48,18 +48,22 @@ class TestBuildPlan:
         assert "fps=" not in chain, "fps 滤镜会丢帧,不该出现"
         assert chain.endswith("format=yuv420p")
 
-    def test_default_is_compatible_h264(self):
+    def test_default_is_hevc_hw(self):
+        """默认 h265 + VideoToolbox → hevc_videotoolbox，无 -crf。"""
         c = self._plan().cmd
-        assert c[c.index("-c:v") + 1] == "libx264"
-        assert "-crf" in c and "+faststart" in c and "-an" in c
+        assert c[c.index("-c:v") + 1] == "hevc_videotoolbox"
+        assert c[c.index("-tag:v") + 1] == "hvc1"
+        assert "-crf" not in c and "-q:v" in c and "+faststart" in c and "-an" in c
 
-    def test_h265_gets_hvc1_tag(self):
-        c = self._plan(codec="h265").cmd
+    def test_h265_software_gets_hvc1_tag(self):
+        """软件编码 h265 (--no-hw) 需要显式加 hvc1 tag，QuickTime 才认。"""
+        c = self._plan(codec="h265", hw=False).cmd
         assert c[c.index("-c:v") + 1] == "libx265"
         assert c[c.index("-tag:v") + 1] == "hvc1"
 
-    def test_hw_switches_encoder_and_drops_crf(self):
-        c = self._plan(hw=True).cmd
+    def test_hw_h264_encoder(self):
+        """显式指定 h264 + hw → h264_videotoolbox，无 -crf。"""
+        c = self._plan(hw=True, codec="h264").cmd
         assert c[c.index("-c:v") + 1] == "h264_videotoolbox"
         assert "-crf" not in c and "-q:v" in c
 

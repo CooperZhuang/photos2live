@@ -10,7 +10,6 @@ from . import __version__
 from .livephoto import (
     DEFAULT_LIVE_SECONDS,
     LivePhotoError,
-    delete_from_library,
     import_to_photos,
     live_fps,
     pair,
@@ -23,6 +22,7 @@ from .prepare import (
     PrepareError,
     clear_cache,
     prepare,
+    probe_color_range,
     probe_size,
     resolve_size,
 )
@@ -84,10 +84,11 @@ def build_parser() -> argparse.ArgumentParser:
     e.add_argument("-o", "--output", metavar="文件",
                    help="视频输出路径;不填则按起止文件名自动生成。"
                         "与 --live-photo 同时使用时同时输出视频和实况照片")
-    e.add_argument("--codec", choices=("h264", "h265"), default="h264", help="默认 h264,兼容性最好")
+    e.add_argument("--codec", choices=("h264", "h265"), default="h265", help="默认 h265 (VideoToolbox)")
     e.add_argument("--crf", type=int, default=18, metavar="0-51", help="画质,越小越好,默认 18")
-    e.add_argument("--preset", default="medium", help="libx264 preset,默认 medium")
-    e.add_argument("--hw", action="store_true", help="用 VideoToolbox 硬件编码 (快,同码率画质略差)")
+    e.add_argument("--preset", default="medium", help="软件编码 preset,默认 medium (--no-hw 时生效)")
+    e.add_argument("--hw", action=argparse.BooleanOptionalAction, default=True,
+                   help="VideoToolbox 硬件编码（默认开，--no-hw 改用软件编码）")
     e.add_argument("--audio", metavar="文件", help="背景音乐,自动裁到视频长度并淡出")
 
     lp = p.add_argument_group("实况照片 (Live Photo)")
@@ -109,8 +110,6 @@ def build_parser() -> argparse.ArgumentParser:
     m.add_argument("--cache-dir", default=DEFAULT_CACHE, metavar="目录", help=f"中间帧缓存,默认 {DEFAULT_CACHE}")
     m.add_argument("--clear-cache", action="store_true", help="清空中间帧缓存后退出")
     m.add_argument("--workers", type=int, metavar="N", help="并行缩放线程数,默认自动")
-    m.add_argument("--delete-originals", action="store_true",
-                   help="合成完成后把原图移入「照片」App 的最近删除（30 天内可恢复，仅限照片库来源）")
     m.add_argument("-q", "--quiet", action="store_true", help="少输出")
     return p
 
@@ -135,6 +134,14 @@ def _collect(args) -> tuple[list, list[str]]:
     return from_library(rng, library=args.library)
 
 
+def _still_time(chunk: list, still_photo, alloc) -> float:
+    """still_photo 在 chunk 中对应的视频起始时间戳（秒）。"""
+    for i, p in enumerate(chunk):
+        if p.name == still_photo.name:
+            return sum(alloc.frames[:i]) / alloc.fps
+    return 0.0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -154,6 +161,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.preview:
             photos = photos[: args.preview]
             say(f"预览模式:只用前 {len(photos)} 张")
+
+        src_color_range = probe_color_range(photos[0].path)
 
         # 分组 (--live-split 仅在 --live-photo 时生效)
         split_n = args.live_split if args.live_photo and args.live_split > 0 else 0
@@ -224,6 +233,7 @@ def main(argv: list[str] | None = None) -> int:
                     manifest_path=manifest_path,
                     crf=args.crf, preset=args.preset, codec=args.codec,
                     hw=args.hw, deflicker=args.deflicker, audio=args.audio,
+                    color_range=src_color_range,
                 )
                 if args.resolution.lower() == SOURCE_RESOLUTION:
                     say("画面: source(源图原始尺寸,不缩放)")
@@ -233,8 +243,9 @@ def main(argv: list[str] | None = None) -> int:
                 say(f"视频输出: {chunk_out}\nffmpeg 命令:\n{plan.pretty()}")
                 if args.live_photo:
                     live_dir = chunk_out.parent
-                    still_name = pick_still(chunk, args.live_still).name
-                    say(f"实况照片: 静态图取 {still_name} → {live_dir}/")
+                    still_ph = pick_still(chunk, args.live_still)
+                    st = _still_time(chunk, still_ph, alloc)
+                    say(f"实况照片: 静态图取 {still_ph.name} (still-time={st:.3f}s) → {live_dir}/")
             say("\n(--dry-run:没有实际渲染)")
             return 0
 
@@ -284,6 +295,7 @@ def main(argv: list[str] | None = None) -> int:
                 manifest_path=manifest_path,
                 crf=args.crf, preset=args.preset, codec=args.codec,
                 hw=args.hw, deflicker=args.deflicker, audio=args.audio,
+                color_range=src_color_range,
             )
             run(plan, manifest_path, quiet=args.quiet)
 
@@ -301,10 +313,11 @@ def main(argv: list[str] | None = None) -> int:
                 say(f"静态图取 {still_photo.name}")
                 live_dir = chunk_out.parent
                 res = pair(still_photo.path, chunk_out, live_dir,
-                           width=pre.width, height=pre.height)
+                           width=pre.width, height=pre.height,
+                           still_time=_still_time(chunk, still_photo, alloc))
                 say(f"实况配对完成 (uuid {res.uuid}):\n  {res.still}\n  {res.video}")
                 if args.import_to_photos:
-                    res = import_to_photos(res)
+                    import_to_photos(res)
                     say("已导入「照片」App —— 开了 iCloud 照片就会同步到 iPhone")
                 else:
                     say("导入方式:加 --import-to-photos 自动导入,"
@@ -312,16 +325,6 @@ def main(argv: list[str] | None = None) -> int:
             elif not args.output:
                 pass  # 仅视频模式,已打印完成信息
 
-        # 所有分组处理完毕后再删除，确保合成成功
-        if args.delete_originals:
-            from_library_mode = args.source == "library" or (
-                args.source == "auto" and not args.input_dir)
-            if not from_library_mode:
-                print("  ⚠ --delete-originals 仅支持照片库来源，已跳过", file=sys.stderr)
-            else:
-                say(f"正在把 {len(photos)} 张原图移入最近删除…")
-                n = delete_from_library([p.name for p in photos])
-                say(f"已移入最近删除: {n} 张（30 天内可在「照片」App → 最近删除 中恢复）")
 
         for w in warnings:
             print(f"  ⚠ {w}", file=sys.stderr)

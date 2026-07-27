@@ -49,16 +49,19 @@ def build_manifest(frames: list[Path], alloc: Allocation) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _video_filters(alloc: Allocation, deflicker: int, extra: str | None) -> list[str]:
+def _video_filters(alloc: Allocation, deflicker: int, extra: str | None,
+                   color_range: int = 2) -> list[str]:
     # 不要在这里加 fps= 滤镜:清单里的 duration 已经是 1/fps 的整数倍,
     # 再过一遍 fps 重采样反而会丢帧 (实测 30 帧变 29 帧)。输出帧率靠 -r 指定。
     chain: list[str] = []
     if deflicker:
-        # 延时摄影常见的逐帧亮度跳变;size 是参与平均的帧数
         chain.append(f"deflicker=size={deflicker}:mode=pm")
     if extra:
         chain.append(extra)
-    chain.append("format=yuv420p")  # QuickTime / 微信 / 剪映 都能播的前提
+    # scale=iw:ih 是无损尺寸透传；in_range/out_range 明确声明颜色范围，
+    # 避免 swscaler 对 yuvj420p 中间帧报 "deprecated pixel format" 警告。
+    rng = "full" if color_range == 2 else "limited"
+    chain.append(f"scale=iw:ih:in_range={rng}:out_range={rng},format=yuv420p")
     return chain
 
 
@@ -70,11 +73,12 @@ def build_plan(
     manifest_path: str | Path | None = None,
     crf: int = 18,
     preset: str = "medium",
-    codec: str = "h264",
-    hw: bool = False,
+    codec: str = "h265",
+    hw: bool = True,
     deflicker: int = 0,
     extra_vf: str | None = None,
     audio: str | Path | None = None,
+    color_range: int = 2,
 ) -> RenderPlan:
     """拼出完整 ffmpeg 命令(不执行)。"""
     if not frames:
@@ -99,13 +103,13 @@ def build_plan(
     if audio:
         cmd += ["-i", str(Path(audio).expanduser())]
 
-    cmd += ["-vf", ",".join(_video_filters(alloc, deflicker, extra_vf))]
+    cmd += ["-vf", ",".join(_video_filters(alloc, deflicker, extra_vf, color_range))]
     # 精确到帧:concat 末尾会多带 1 帧,截断到分配的总帧数,总时长才和预期一致
     cmd += ["-frames:v", str(alloc.total_frames)]
     cmd += ["-c:v", enc, *qflags, "-r", str(alloc.fps)]
-    if codec == "h265" and not hw:
-        cmd += ["-tag:v", "hvc1"]  # 不加这个 QuickTime 不认
-    cmd += ["-movflags", "+faststart", "-pix_fmt", "yuv420p", "-color_range", "1"]
+    if codec == "h265":
+        cmd += ["-tag:v", "hvc1"]  # hev1(VideoToolbox 默认) → hvc1，Photos.app 才能配对
+    cmd += ["-movflags", "+faststart", "-pix_fmt", "yuv420p", "-color_range", str(color_range)]
 
     if audio:
         fade = max(0.1, min(3.0, alloc.total_seconds / 10))

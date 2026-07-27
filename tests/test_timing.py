@@ -1,6 +1,6 @@
 import pytest
 
-from photo2video.timing import TimingError, allocate, load_durations
+from photos2live.timing import TimingError, allocate, load_durations
 
 
 def names(n, start=1001222, prefix="P", ext=".JPG"):

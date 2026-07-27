@@ -1,5 +1,5 @@
 [project]
-name = "photo2video"
+name = "photos2live"
 version = "0.1.0"
 description = "把有序照片合成延时/幻灯片视频"
 requires-python = ">=3.11"
@@ -9,7 +9,7 @@ dependencies = []
 osxphotos = ["osxphotos>=0.68.0"]
 
 [project.scripts]
-photo2video = "photo2video.cli:main"
+photos2live = "photos2live.cli:main"
 
 [dependency-groups]
 dev = ["pytest>=8.0"]

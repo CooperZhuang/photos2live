@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from photo2video.livephoto import LivePhotoError, live_fps, pick_still
-from photo2video.sources import Photo
+from photos2live.livephoto import LivePhotoError, live_fps, pick_still
+from photos2live.sources import Photo
 
 
 def photos(n=5, start=1001222):
@@ -53,7 +53,7 @@ class TestPickStill:
 
 class TestHelperBuild:
     def test_helper_compiles(self):
-        from photo2video.livephoto import ensure_helper
+        from photos2live.livephoto import ensure_helper
 
         binary = ensure_helper()
         assert binary.exists() and binary.stat().st_mode & 0o111

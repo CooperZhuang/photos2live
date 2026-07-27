@@ -34,24 +34,24 @@ DEFAULT_CACHE = ".p2v-cache"
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="photo2video",
+        prog="photos2live",
         description="把有序照片合成延时/幻灯片视频",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""示例:
   # 从「照片」App 直接读,12 张/秒的延时
-  photo2video --range P1001222-P1001325 -o out/timelapse.mp4 --photo-fps 12
+  photos2live --range P1001222-P1001325 -o out/timelapse.mp4 --photo-fps 12
 
   # 幻灯片:每张 3 秒,1080p 模糊填充
-  photo2video --input-dir ~/Desktop/pics -o out/slides.mp4 --per-photo 3 --fit blur
+  photos2live --input-dir ~/Desktop/pics -o out/slides.mp4 --per-photo 3 --fit blur
 
   # 卡总时长:整段正好 20 秒
-  photo2video --range P1001222-325 -o out/v.mp4 --total 20
+  photos2live --range P1001222-325 -o out/v.mp4 --total 20
 
   # 先看清单和 ffmpeg 命令,不真跑
-  photo2video --range P1001222-325 -o out/v.mp4 --total 20 --dry-run
+  photos2live --range P1001222-325 -o out/v.mp4 --total 20 --dry-run
 """,
     )
-    p.add_argument("--version", action="version", version=f"photo2video {__version__}")
+    p.add_argument("--version", action="version", version=f"photos2live {__version__}")
 
     src = p.add_argument_group("照片来源")
     src.add_argument("--range", dest="range_spec", metavar="起始-结束",
@@ -81,7 +81,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     e = p.add_argument_group("编码")
     e.add_argument("-o", "--output", metavar="文件",
-                   help="输出视频路径;不填则按起止文件名自动生成 (如 P1001222-P1001325.mov)")
+                   help="视频输出路径;不填则按起止文件名自动生成。"
+                        "与 --live-photo 同时使用时同时输出视频和实况照片")
     e.add_argument("--codec", choices=("h264", "h265"), default="h264", help="默认 h264,兼容性最好")
     e.add_argument("--crf", type=int, default=18, metavar="0-51", help="画质,越小越好,默认 18")
     e.add_argument("--preset", default="medium", help="libx264 preset,默认 medium")
@@ -168,7 +169,15 @@ def main(argv: list[str] | None = None) -> int:
         say(f"照片 {len(photos)} 张: {photos[0].name} ... {photos[-1].name}")
 
         # 确定输出目录 / 基础路径
-        ext = ".mov" if args.live_photo else ".mp4"
+        # -o 和 --live-photo 相互独立:单独或同时使用均可
+        # 未指定 -o 时:只有 --live-photo 则用 .mov,否则用 .mp4
+        output_is_file = bool(args.output and not Path(args.output).is_dir())
+        if output_is_file:
+            ext = Path(args.output).suffix or ".mp4"
+        elif args.live_photo:
+            ext = ".mov"
+        else:
+            ext = ".mp4"
         multi = len(chunks) > 1
         if args.output and not Path(args.output).is_dir():
             # 显式指定了具体文件:单组时用它,多组时用其父目录自动命名
@@ -186,8 +195,6 @@ def main(argv: list[str] | None = None) -> int:
                 first_stem = Path(chunk[0].name).stem
                 last_stem  = Path(chunk[-1].name).stem
                 p = out_dir / f"{first_stem}-{last_stem}{ext}"
-            if args.live_photo and p.suffix.lower() != ".mov":
-                p = p.with_suffix(".mov")
             return p
 
         if args.dry_run:
@@ -220,7 +227,11 @@ def main(argv: list[str] | None = None) -> int:
                 else:
                     w0, h0 = resolve_size(args.resolution, fit, probe_size(chunk[0].path))
                     say(f"画面: {args.resolution} -> {w0}x{h0} / fit={fit}")
-                say(f"输出: {chunk_out}\nffmpeg 命令:\n{plan.pretty()}")
+                say(f"视频输出: {chunk_out}\nffmpeg 命令:\n{plan.pretty()}")
+                if args.live_photo:
+                    live_dir = chunk_out.parent / "live"
+                    still_name = pick_still(chunk, args.live_still).name
+                    say(f"实况照片: 静态图取 {still_name} → {live_dir}/")
             say("\n(--dry-run:没有实际渲染)")
             return 0
 
@@ -295,6 +306,8 @@ def main(argv: list[str] | None = None) -> int:
                 else:
                     say("导入方式:加 --import-to-photos 自动导入,"
                         "或把上面两个文件一起拖进「照片」App")
+            elif not args.output:
+                pass  # 仅视频模式,已打印完成信息
 
         for w in warnings:
             print(f"  ⚠ {w}", file=sys.stderr)

@@ -87,6 +87,18 @@ def probe_size(path: Path) -> tuple[int, int]:
     return w, h
 
 
+def probe_color_range(path: Path) -> int:
+    """探测图像颜色范围。返回 2(full/pc，0-255) 或 1(limited/tv，16-235)。
+    JPEG/HEIC 原生是 full-range；ffprobe 读不出时保守返回 2。"""
+    out = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0",
+         "-show_entries", "stream=color_range",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
+        capture_output=True, text=True,
+    )
+    return 1 if out.stdout.strip() == "tv" else 2
+
+
 def resolve_size(
     resolution: str, fit: str, source: tuple[int, int]
 ) -> tuple[int, int]:

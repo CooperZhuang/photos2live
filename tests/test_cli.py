@@ -16,8 +16,8 @@ class TestParser:
     def test_defaults(self):
         a = build_parser().parse_args(["-o", "x.mp4"])
         # resolution 默认 source(不缩放); fit 默认留空,由运行时按模式解析
-        assert (a.fps, a.resolution, a.fit, a.codec, a.crf) == (30, SOURCE_RESOLUTION, None, "h264", 18)
-        assert a.deflicker == 0 and a.source == "auto"
+        assert (a.fps, a.resolution, a.fit, a.codec, a.crf) == (30, SOURCE_RESOLUTION, None, "h265", 18)
+        assert a.deflicker == 0 and a.source == "auto" and a.hw is True
 
     def test_source_resolution_returns_source_size(self):
         """resolution='source' 时 resolve_size 直接返回源图尺寸(偶数对齐)。"""

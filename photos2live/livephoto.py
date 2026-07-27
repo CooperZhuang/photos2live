@@ -137,32 +137,6 @@ def pair(
     return LiveResult(still=still, video=video, uuid=parsed.get("uuid", cid))
 
 
-def delete_from_library(names: list[str], timeout: int = 300) -> int:
-    """把指定文件名的照片移入「照片」App 的最近删除（30 天内可恢复）。
-
-    返回实际移入最近删除的数量。
-    """
-    if not names:
-        return 0
-    names_as = "{" + ", ".join(f'"{n}"' for n in names) + "}"
-    script = f"""with timeout of {timeout} seconds
-tell application "Photos"
-    set toDelete to {{}}
-    set nameList to {names_as}
-    repeat with fname in nameList
-        set found to (every media item whose filename is fname)
-        set toDelete to toDelete & found
-    end repeat
-    if toDelete is not {{}} then
-        delete toDelete
-    end if
-    return count of toDelete
-end tell
-end timeout"""
-    out = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
-    if out.returncode != 0:
-        raise LivePhotoError(f"删除原图失败: {out.stderr.strip()[:300]}")
-    return int(out.stdout.strip() or "0")
 
 
 def import_to_photos(result: LiveResult, timeout: int = 600) -> LiveResult:
@@ -172,13 +146,17 @@ def import_to_photos(result: LiveResult, timeout: int = 600) -> LiveResult:
     命令行二进制没有 app bundle 会被直接拒掉 (实测返回 denied 且不弹窗)。
     Photos.app 本来就有图库权限,把两个文件一起交给它,它会配对成 1 个实况照片。
     """
-    script = f"""with timeout of {timeout} seconds
-tell application "Photos"
- set f to {{POSIX file "{result.still}", POSIX file "{result.video}"}}
- set r to import f skip check duplicates true
- return count of r
-end tell
-end timeout"""
+    script = f"""set new_id to ""
+with timeout of {timeout} seconds
+    tell application "Photos"
+        set f to {{POSIX file "{result.still}", POSIX file "{result.video}"}}
+        set r to import f skip check duplicates true
+        if (count of r) > 0 then
+            set new_id to id of item 1 of r
+        end if
+    end tell
+end timeout
+return new_id"""
     out = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
     if out.returncode != 0:
         raise LivePhotoError(
@@ -186,10 +164,9 @@ end timeout"""
             f"可以手动把这两个文件一起拖进「照片」App:\n"
             f"  {result.still}\n  {result.video}"
         )
-    n = out.stdout.strip()
-    if n != "1":
+    if not out.stdout.strip():
         raise LivePhotoError(
-            f"导入返回 {n} 个项目 (期望 1 个配对好的实况照片)。"
-            f"如果是 2,说明静态图和视频没配对上,检查 UUID 是否写入成功。"
+            f"导入返回空 ID（期望 1 个配对好的实况照片）。\n"
+            f"如果图库里出现 2 个独立照片，说明静态图和视频没配对上，检查 UUID 是否写入成功。"
         )
     return LiveResult(still=result.still, video=result.video, uuid=result.uuid, imported=True)

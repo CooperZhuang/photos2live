@@ -1,7 +1,7 @@
 import pytest
 
-from photo2video.cli import build_parser, main
-from photo2video.prepare import SOURCE_RESOLUTION, resolve_size
+from photos2live.cli import build_parser, main
+from photos2live.prepare import SOURCE_RESOLUTION, resolve_size
 
 
 def mkphotos(tmp_path, n=4, start=1001222):

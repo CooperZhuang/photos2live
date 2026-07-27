@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from photo2video.render import TAIL_PAD, RenderError, build_manifest, build_plan
-from photo2video.timing import Allocation, allocate
+from photos2live.render import TAIL_PAD, RenderError, build_manifest, build_plan
+from photos2live.timing import Allocation, allocate
 
 
 def frames(n):

@@ -1,6 +1,6 @@
 import pytest
 
-from photo2video.sources import Range, SourceError, from_directory, parse_range, split_name
+from photos2live.sources import Range, SourceError, from_directory, parse_range, split_name
 
 
 class TestSplitName:

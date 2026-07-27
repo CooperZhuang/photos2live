@@ -1,4 +1,4 @@
-# photo2video
+# photos2live
 
 > 把有序照片合成 **iPhone 实况照片**、延时视频或幻灯片。直接读 macOS「照片」App 的图库，不用手动导出。
 
@@ -10,10 +10,10 @@
 # 安装依赖
 brew install ffmpeg
 xcode-select --install
-git clone https://github.com/your-name/photo2video && cd photo2video && uv sync
+git clone https://github.com/your-name/photos2live && cd photos2live && uv sync
 
 # 104 张照片 → 实况照片，自动导入「照片」App
-uv run photo2video --range P1001222-P1001325 --live-photo --import-to-photos
+uv run photos2live --range P1001222-P1001325 --live-photo --import-to-photos
 ```
 
 ## ✨ 核心特性
@@ -38,8 +38,8 @@ xcode-select --install       # swiftc，用于实况照片打包
 **安装工具：**
 
 ```bash
-git clone https://github.com/your-name/photo2video.git
-cd photo2video
+git clone https://github.com/your-name/photos2live.git
+cd photos2live
 uv sync
 ```
 
@@ -54,7 +54,7 @@ uv sync
 **生成实况照片并导入：**
 
 ```bash
-uv run photo2video --range P1001222-P1001325 --live-photo --import-to-photos
+uv run photos2live --range P1001222-P1001325 --live-photo --import-to-photos
 # 输出: P1001222-P1001325.mov，静态图取第一张，完整保留 EXIF
 ```
 
@@ -62,28 +62,28 @@ uv run photo2video --range P1001222-P1001325 --live-photo --import-to-photos
 
 ```bash
 # 104 张 → 4 个实况照片，每组 30 张
-uv run photo2video --range P1001222-P1001325 --live-photo --live-split 30 --import-to-photos
+uv run photos2live --range P1001222-P1001325 --live-photo --live-split 30 --import-to-photos
 # 输出: P1001222-P1001251.mov / P1001252-P1001281.mov / ...
 ```
 
 **延时视频 / 幻灯片：**
 
 ```bash
-uv run photo2video --range P1001222-P1001325 --photo-fps 12 -o timelapse.mp4
-uv run photo2video --input-dir ~/Desktop/pics --per-photo 2 --fit blur -o slides.mp4
+uv run photos2live --range P1001222-P1001325 --photo-fps 12 -o timelapse.mp4
+uv run photos2live --input-dir ~/Desktop/pics --per-photo 2 --fit blur -o slides.mp4
 ```
 
 **先看效果，不真跑：**
 
 ```bash
-uv run photo2video --range P1001222-P1001325 --live-photo --dry-run
+uv run photos2live --range P1001222-P1001325 --live-photo --dry-run
 ```
 
 ## 📁 项目结构
 
 ```
-photo2video/
-├── photo2video/
+photos2live/
+├── photos2live/
 │   ├── cli.py           # 命令行入口，分组拆分逻辑
 │   ├── prepare.py       # 并行缩放、EXIF 旋转识别
 │   ├── render.py        # ffmpeg 编码、concat 清单生成

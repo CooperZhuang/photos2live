@@ -170,7 +170,7 @@ def _scale_one(src: Path, dst: Path, vf: str, quality: int) -> None:
     tmp = dst.with_suffix(".part.jpg")
     cmd = ["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", str(src)]
     cmd += ["-filter_complex" if "[" in vf else "-vf", vf]
-    cmd += ["-q:v", str(quality), "-frames:v", "1", "-color_range", "1", str(tmp)]
+    cmd += ["-q:v", str(quality), "-frames:v", "1", str(tmp)]
     out = subprocess.run(cmd, capture_output=True, text=True)
     if out.returncode != 0 or not tmp.exists():
         tmp.unlink(missing_ok=True)

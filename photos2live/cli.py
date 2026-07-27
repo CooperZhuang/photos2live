@@ -185,7 +185,7 @@ def main(argv: list[str] | None = None) -> int:
             out_dir = Path(args.output).parent
         else:
             fixed_out = None
-            out_dir = Path(args.output) if args.output else Path(".")
+            out_dir = Path(args.output) if args.output else Path("out")
         out_dir.mkdir(parents=True, exist_ok=True)
 
         def chunk_out_path(chunk) -> Path:
@@ -229,7 +229,7 @@ def main(argv: list[str] | None = None) -> int:
                     say(f"画面: {args.resolution} -> {w0}x{h0} / fit={fit}")
                 say(f"视频输出: {chunk_out}\nffmpeg 命令:\n{plan.pretty()}")
                 if args.live_photo:
-                    live_dir = chunk_out.parent / "live"
+                    live_dir = chunk_out.parent
                     still_name = pick_still(chunk, args.live_still).name
                     say(f"实况照片: 静态图取 {still_name} → {live_dir}/")
             say("\n(--dry-run:没有实际渲染)")
@@ -296,7 +296,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.live_photo:
                 still_photo = pick_still(chunk, args.live_still)
                 say(f"静态图取 {still_photo.name}")
-                live_dir = chunk_out.parent / "live"
+                live_dir = chunk_out.parent
                 res = pair(still_photo.path, chunk_out, live_dir,
                            width=pre.width, height=pre.height)
                 say(f"实况配对完成 (uuid {res.uuid}):\n  {res.still}\n  {res.video}")

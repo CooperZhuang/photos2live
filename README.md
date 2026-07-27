@@ -51,32 +51,43 @@ uv sync
 
 ## 🚀 快速开始
 
-**生成实况照片并导入：**
+**仅生成视频（不导入照片 App）：**
 
 ```bash
-uv run photos2live --range P1001222-P1001325 --live-photo --import-to-photos
-# 输出: P1001222-P1001325.mov，静态图取第一张，完整保留 EXIF
-```
+# 延时视频，每秒 33 张，自动命名输出到 out/
+uv run photos2live --range P1001449-P1001648 --photo-fps 33
 
-**照片太多，自动拆分：**
-
-```bash
-# 104 张 → 4 个实况照片，每组 30 张
-uv run photos2live --range P1001222-P1001325 --live-photo --live-split 30 --import-to-photos
-# 输出: P1001222-P1001251.mov / P1001252-P1001281.mov / ...
-```
-
-**延时视频 / 幻灯片：**
-
-```bash
-uv run photos2live --range P1001222-P1001325 --photo-fps 12 -o timelapse.mp4
+# 幻灯片，每张 2 秒，模糊背景填充
 uv run photos2live --input-dir ~/Desktop/pics --per-photo 2 --fit blur -o slides.mp4
+```
+
+**仅生成实况照片并导入：**
+
+```bash
+# 单个实况照片
+uv run photos2live --range P1001449-P1001648 --live-photo --import-to-photos
+
+# 照片太多，自动拆分（每组 100 张 ≈ 33fps，流畅）
+uv run photos2live --range P1001449-P1001648 --live-photo --live-split 100 --import-to-photos
+```
+
+**同时输出视频 + 实况照片：**
+
+```bash
+uv run photos2live --range P1001449-P1001648 -o out/burst.mp4 --live-photo --import-to-photos
+```
+
+**合成后删除原图（移入最近删除，30 天可恢复）：**
+
+```bash
+uv run photos2live --range P1001449-P1001648 --live-photo --live-split 100 \
+    --import-to-photos --delete-originals
 ```
 
 **先看效果，不真跑：**
 
 ```bash
-uv run photos2live --range P1001222-P1001325 --live-photo --dry-run
+uv run photos2live --range P1001449-P1001648 --live-photo --live-split 100 --dry-run
 ```
 
 ## 📁 项目结构

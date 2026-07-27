@@ -94,8 +94,21 @@ func writeStill(from src: String, to dst: String, uuid: String, width: Int, heig
         else { die("缩略图生成失败 \(src)") }
         CGImageDestinationAddImage(dest, img, meta as CFDictionary)
     } else {
-        // 不缩放:直接从源复制像素数据,只更新元数据
-        CGImageDestinationAddImageFromSource(dest, source, 0, meta as CFDictionary)
+        // 原尺寸:也要 bake EXIF 旋转进像素,否则静态图原始像素方向会和视频不一致
+        let thumbOpts: [CFString: Any] = [
+            kCGImageSourceThumbnailMaxPixelSize: 100_000,   // 远大于实际尺寸,相当于不限制
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+        ]
+        guard let img = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbOpts as CFDictionary)
+        else { die("原尺寸图像处理失败 \(src)") }
+        // 旋转已 bake 进像素,把 Orientation 标签改为 1(正向),避免播放器二次旋转
+        meta[kCGImagePropertyOrientation as String] = 1
+        if var tiff = meta["{TIFF}"] as? [String: Any] {
+            tiff["Orientation"] = 1
+            meta["{TIFF}"] = tiff
+        }
+        CGImageDestinationAddImage(dest, img, meta as CFDictionary)
     }
 
     guard CGImageDestinationFinalize(dest) else { die("写静态图失败 \(dst)") }

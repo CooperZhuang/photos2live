@@ -1,0 +1,78 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# uv
+.venv/
+venv/
+ENV/
+env/
+.uv/
+uv.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Project-specific: 中间帧缓存
+.p2v-cache/
+# Project-specific: 输出目录
+out/
+# Project-specific: 实况照片和视频输出
+*.mov
+*.mp4
+# Project-specific: 生成的静态图
+*.JPG
+*.JPEG
+# Project-specific: ffmpeg concat 清单
+*.concat.txt
+
+# Swift 编译产物
+swift/livephoto
+swift/livephoto.o
+
+# macOS
+.AppleDouble
+.LSOverride
+*.localized
+
+# Backup files
+*.bak
+*.tmp
+*~
+.#*
+
+# Environment
+.env
+.env.local

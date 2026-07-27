@@ -10,6 +10,7 @@ from . import __version__
 from .livephoto import (
     DEFAULT_LIVE_SECONDS,
     LivePhotoError,
+    delete_from_library,
     import_to_photos,
     live_fps,
     pair,
@@ -108,6 +109,8 @@ def build_parser() -> argparse.ArgumentParser:
     m.add_argument("--cache-dir", default=DEFAULT_CACHE, metavar="目录", help=f"中间帧缓存,默认 {DEFAULT_CACHE}")
     m.add_argument("--clear-cache", action="store_true", help="清空中间帧缓存后退出")
     m.add_argument("--workers", type=int, metavar="N", help="并行缩放线程数,默认自动")
+    m.add_argument("--delete-originals", action="store_true",
+                   help="合成完成后把原图移入「照片」App 的最近删除（30 天内可恢复，仅限照片库来源）")
     m.add_argument("-q", "--quiet", action="store_true", help="少输出")
     return p
 
@@ -308,6 +311,17 @@ def main(argv: list[str] | None = None) -> int:
                         "或把上面两个文件一起拖进「照片」App")
             elif not args.output:
                 pass  # 仅视频模式,已打印完成信息
+
+        # 所有分组处理完毕后再删除，确保合成成功
+        if args.delete_originals:
+            from_library_mode = args.source == "library" or (
+                args.source == "auto" and not args.input_dir)
+            if not from_library_mode:
+                print("  ⚠ --delete-originals 仅支持照片库来源，已跳过", file=sys.stderr)
+            else:
+                say(f"正在把 {len(photos)} 张原图移入最近删除…")
+                n = delete_from_library([p.name for p in photos])
+                say(f"已移入最近删除: {n} 张（30 天内可在「照片」App → 最近删除 中恢复）")
 
         for w in warnings:
             print(f"  ⚠ {w}", file=sys.stderr)

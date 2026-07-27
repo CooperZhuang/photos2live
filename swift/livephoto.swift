@@ -82,34 +82,22 @@ func writeStill(from src: String, to dst: String, uuid: String, width: Int, heig
     guard let dest = CGImageDestinationCreateWithURL(dstURL, UTType.jpeg.identifier as CFString, 1, nil)
     else { die("建不了输出静态图 \(dst)") }
 
-    if width > 0 && height > 0 {
-        // 按长边缩放:kCGImageSourceCreateThumbnailWithTransform 自动应用 EXIF 旋转
-        let maxSide = max(width, height)
-        let thumbOpts: [CFString: Any] = [
-            kCGImageSourceThumbnailMaxPixelSize: maxSide,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-        ]
-        guard let img = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbOpts as CFDictionary)
-        else { die("缩略图生成失败 \(src)") }
-        CGImageDestinationAddImage(dest, img, meta as CFDictionary)
-    } else {
-        // 原尺寸:也要 bake EXIF 旋转进像素,否则静态图原始像素方向会和视频不一致
-        let thumbOpts: [CFString: Any] = [
-            kCGImageSourceThumbnailMaxPixelSize: 100_000,   // 远大于实际尺寸,相当于不限制
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-        ]
-        guard let img = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbOpts as CFDictionary)
-        else { die("原尺寸图像处理失败 \(src)") }
-        // 旋转已 bake 进像素,把 Orientation 标签改为 1(正向),避免播放器二次旋转
-        meta[kCGImagePropertyOrientation as String] = 1
-        if var tiff = meta["{TIFF}"] as? [String: Any] {
-            tiff["Orientation"] = 1
-            meta["{TIFF}"] = tiff
-        }
-        CGImageDestinationAddImage(dest, img, meta as CFDictionary)
+    // maxSide=0 (未指定 width/height) 时用一个远大于实际尺寸的值,相当于不限制/不缩放
+    let maxSide = (width > 0 && height > 0) ? max(width, height) : 100_000
+    let thumbOpts: [CFString: Any] = [
+        kCGImageSourceThumbnailMaxPixelSize: maxSide,
+        kCGImageSourceCreateThumbnailWithTransform: true,   // 自动 bake EXIF 旋转进像素
+        kCGImageSourceCreateThumbnailFromImageAlways: true,
+    ]
+    guard let img = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbOpts as CFDictionary)
+    else { die("静态图处理失败 \(src)") }
+    // 旋转已 bake 进像素,把 Orientation 标签改为 1(正向),避免播放器/Photos 二次旋转
+    meta[kCGImagePropertyOrientation as String] = 1
+    if var tiff = meta["{TIFF}"] as? [String: Any] {
+        tiff["Orientation"] = 1
+        meta["{TIFF}"] = tiff
     }
+    CGImageDestinationAddImage(dest, img, meta as CFDictionary)
 
     guard CGImageDestinationFinalize(dest) else { die("写静态图失败 \(dst)") }
 }
@@ -152,12 +140,14 @@ func contentIdItem(_ uuid: String) -> AVMutableMetadataItem {
 
 /// 原样搬运视频/音频轨 (不重编码),加上 content.identifier 和 still-image-time 轨。
 func writeVideo(from src: String, to dst: String, uuid: String, stillTime: Double) async {
+    // 先写临时文件,成功后才替换 dst —— dst 和 src 在大小写不敏感的文件系统上
+    // 可能是同一个文件 (如 foo.mov vs foo.MOV),提前删 dst 会把还没读的 src 删掉
+    let tmpDst = dst + ".tmp-\(UUID().uuidString).mov"
     let asset = AVURLAsset(url: URL(fileURLWithPath: src))
-    try? FileManager.default.removeItem(atPath: dst)
 
     guard let reader = try? AVAssetReader(asset: asset) else { die("读不了视频 \(src)") }
-    guard let writer = try? AVAssetWriter(outputURL: URL(fileURLWithPath: dst), fileType: .mov)
-    else { die("建不了输出视频 \(dst)") }
+    guard let writer = try? AVAssetWriter(outputURL: URL(fileURLWithPath: tmpDst), fileType: .mov)
+    else { die("建不了输出视频 \(tmpDst)") }
 
     writer.metadata = [contentIdItem(uuid)]
 
@@ -227,10 +217,19 @@ func writeVideo(from src: String, to dst: String, uuid: String, stillTime: Doubl
 
     await writer.finishWriting()
     if writer.status != .completed {
+        try? FileManager.default.removeItem(atPath: tmpDst)
         die("写视频失败: \(writer.error?.localizedDescription ?? "未知")")
     }
     if reader.status == .failed {
+        try? FileManager.default.removeItem(atPath: tmpDst)
         die("读视频失败: \(reader.error?.localizedDescription ?? "未知")")
+    }
+    // 写成功后原子替换：先删 dst（此时 src 已读完，删 dst 安全）
+    try? FileManager.default.removeItem(atPath: dst)
+    do {
+        try FileManager.default.moveItem(atPath: tmpDst, toPath: dst)
+    } catch {
+        die("移动临时视频失败: \(error)")
     }
 }
 

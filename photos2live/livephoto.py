@@ -137,6 +137,34 @@ def pair(
     return LiveResult(still=still, video=video, uuid=parsed.get("uuid", cid))
 
 
+def delete_from_library(names: list[str], timeout: int = 300) -> int:
+    """把指定文件名的照片移入「照片」App 的最近删除（30 天内可恢复）。
+
+    返回实际移入最近删除的数量。
+    """
+    if not names:
+        return 0
+    names_as = "{" + ", ".join(f'"{n}"' for n in names) + "}"
+    script = f"""with timeout of {timeout} seconds
+tell application "Photos"
+    set toDelete to {{}}
+    set nameList to {names_as}
+    repeat with fname in nameList
+        set found to (every media item whose filename is fname)
+        set toDelete to toDelete & found
+    end repeat
+    if toDelete is not {{}} then
+        delete toDelete
+    end if
+    return count of toDelete
+end tell
+end timeout"""
+    out = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
+    if out.returncode != 0:
+        raise LivePhotoError(f"删除原图失败: {out.stderr.strip()[:300]}")
+    return int(out.stdout.strip() or "0")
+
+
 def import_to_photos(result: LiveResult, timeout: int = 600) -> LiveResult:
     """用 AppleScript 让「照片」App 导入配对文件。
 
